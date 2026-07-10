@@ -24,7 +24,7 @@ func main() {
 	}
 	defer snmp.Conn.Close()
 
-	oids := []string{"1.3.6.1.2.1.25.3.3.1.2.1"} // hrProcessorLoad (CPU)
+	oids := []string{"1.3.6.1.2.1.25.3.3.1.2.1"}
 
 	result, err := snmp.Get(oids)
 	if err != nil {
