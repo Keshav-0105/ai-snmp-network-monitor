@@ -24,15 +24,34 @@ func main() {
 	}
 	defer snmp.Conn.Close()
 
-	oids := []string{"1.3.6.1.2.1.25.3.3.1.2.1"}
+	oids := []string{
+		"1.3.6.1.2.1.25.3.3.1.2.1",
+		"1.3.6.1.2.1.25.2.3.1.6.1",
+		"1.3.6.1.2.1.25.2.3.1.5.1",
+		"1.3.6.1.2.1.2.2.1.14.1",
+		"1.3.6.1.2.1.2.2.1.20.1",
+	}
 
+	polldevice(snmp, oids)
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		polldevice(snmp, oids)
+
+	}
+
+}
+
+func polldevice(snmp *gosnmp.GoSNMP, oids []string) {
 	result, err := snmp.Get(oids)
 	if err != nil {
-		log.Fatalf("Get error: %v", err)
+		log.Printf("get error:%v", err)
+		return
+	}
+	for _, variable := range result.Variables {
+		fmt.Printf("OID:%s|Value :%v\n", variable.Name, variable.Value)
+
 	}
 
-	for _, variable := range result.Variables {
-		fmt.Printf("OID: %s\n", variable.Name)
-		fmt.Printf("CPU Load: %v\n", variable.Value)
-	}
 }
