@@ -24,6 +24,12 @@ func main() {
 	}
 	defer snmp.Conn.Close()
 
+	db, err := openDatabase()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
 	oids := []string{
 		"1.3.6.1.2.1.25.3.3.1.2.1",
 		"1.3.6.1.2.1.25.2.3.1.6.1",
@@ -31,27 +37,59 @@ func main() {
 		"1.3.6.1.2.1.2.2.1.14.1",
 		"1.3.6.1.2.1.2.2.1.20.1",
 	}
+	reading, err := polldevice(snmp, oids)
+	if err == nil {
+		saveReading(db, reading)
+	}
 
-	polldevice(snmp, oids)
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		polldevice(snmp, oids)
-
+		reading, err := polldevice(snmp, oids)
+		if err == nil {
+			saveReading(db, reading)
+		}
 	}
-
 }
-
-func polldevice(snmp *gosnmp.GoSNMP, oids []string) {
+func polldevice(snmp *gosnmp.GoSNMP, oids []string) (Reading, error) {
+	fmt.Println("polldevice function started")
 	result, err := snmp.Get(oids)
 	if err != nil {
-		log.Printf("get error:%v", err)
-		return
+		return Reading{}, err
+	}
+	reading := Reading{
+		Device:      snmp.Target,
+		CollectedAt: time.Now(),
 	}
 	for _, variable := range result.Variables {
 		fmt.Printf("OID:%s|Value :%v\n", variable.Name, variable.Value)
 
-	}
+		if variable.Name == ".1.3.6.1.2.1.25.3.3.1.2.1" {
+			value := gosnmp.ToBigInt(variable.Value).Int64()
+			reading.CPU = int(value)
+		}
+		if variable.Name == ".1.3.6.1.2.1.25.2.3.1.6.1" {
+			value := gosnmp.ToBigInt(variable.Value).Int64()
+			reading.MemoryUsed = int(value)
+		}
 
+		if variable.Name == ".1.3.6.1.2.1.25.2.3.1.5.1" {
+			value := gosnmp.ToBigInt(variable.Value).Int64()
+			reading.MemoryTotal = int(value)
+		}
+
+		if variable.Name == ".1.3.6.1.2.1.2.2.1.14.1" {
+			value := gosnmp.ToBigInt(variable.Value).Int64()
+			reading.InterfaceInErrors = int(value)
+		}
+
+		if variable.Name == ".1.3.6.1.2.1.2.2.1.20.1" {
+			value := gosnmp.ToBigInt(variable.Value).Int64()
+			reading.InterfaceOutErrors = int(value)
+		}
+	}
+	fmt.Println("reading captured:", reading)
+
+	return reading, nil
 }
