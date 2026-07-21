@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"time"
@@ -37,9 +38,19 @@ func main() {
 		"1.3.6.1.2.1.2.2.1.14.1",
 		"1.3.6.1.2.1.2.2.1.20.1",
 	}
+
+	readingsChan := make(chan Reading)
+
+	go snmpWorker(snmp, oids, readingsChan)
+	go dbWorker(db, readingsChan)
+
+	select {}
+}
+
+func snmpWorker(snmp *gosnmp.GoSNMP, oids []string, out chan<- Reading) {
 	reading, err := polldevice(snmp, oids)
 	if err == nil {
-		saveReading(db, reading)
+		out <- reading
 	}
 
 	ticker := time.NewTicker(60 * time.Second)
@@ -48,10 +59,22 @@ func main() {
 	for range ticker.C {
 		reading, err := polldevice(snmp, oids)
 		if err == nil {
-			saveReading(db, reading)
+			out <- reading
 		}
 	}
 }
+
+func dbWorker(db *sql.DB, in <-chan Reading) {
+	for reading := range in {
+		err := saveReading(db, reading)
+		if err != nil {
+			log.Printf("Save error: %v", err)
+		} else {
+			log.Println("Reading saved to database")
+		}
+	}
+}
+
 func polldevice(snmp *gosnmp.GoSNMP, oids []string) (Reading, error) {
 	fmt.Println("polldevice function started")
 	result, err := snmp.Get(oids)
