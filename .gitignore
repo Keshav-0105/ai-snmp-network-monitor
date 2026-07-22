@@ -2,3 +2,8 @@ network_monitor.db
 network_monitor_db
 ai-snmp-network-monitor
 *.db
+.go-build-cache/
+.go-tmp/
+build-cache/
+tmp/
+tests/__pycache__/

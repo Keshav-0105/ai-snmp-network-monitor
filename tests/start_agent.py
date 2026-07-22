@@ -8,11 +8,16 @@ Keep this terminal open, then run your Go app in another terminal.
 """
 
 from pathlib import Path
+import select
 import socket
 
 
 HOST = "127.0.0.1"
-PORT = 1161
+PORTS = [
+    2161, 2162, 2163, 2164, 2165, 2166, 2167, 2168, 2169, 2170,
+    2171, 2172, 2173, 2174, 2175, 2176, 2177, 2178, 2179, 2180,
+    2181, 2182, 2183, 2184, 2185, 2186, 2187, 2188, 2189, 2190,
+]
 USERNAME = b"snmpuser"
 ENGINE_ID = b"local-snmp-agent"
 ENGINE_BOOTS = 1
@@ -23,33 +28,47 @@ SNMPREC = PROJECT_ROOT / "data" / "public.snmprec"
 
 
 def main():
-    values = load_values()
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((HOST, PORT))
+    values_by_port = {port: load_values(index) for index, port in enumerate(PORTS)}
+    sockets = {}
+    for port in PORTS:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind((HOST, port))
+        sockets[sock] = port
 
-    print("SNMP agent started")
-    print(f"Address: {HOST}:{PORT}")
+    print("SNMP agents started")
+    print(f"Address: {HOST}")
+    print("Ports:")
+    for port in PORTS:
+        print(f"  {port}")
     print(f"Data file: {SNMPREC}")
     print("Now open another terminal and run:")
-    print("  go run .")
-    print("Press Ctrl+C here to stop the SNMP agent.")
+    print("  ./start_main.sh")
+    print("Press Ctrl+C here to stop the SNMP agents.")
 
     try:
         while True:
-            packet, address = sock.recvfrom(65535)
-            response = build_response(packet, values)
-            sock.sendto(response, address)
-            print(f"Answered SNMP request from {address[0]}:{address[1]}")
+            ready, _, _ = select.select(list(sockets), [], [])
+            for sock in ready:
+                port = sockets[sock]
+                packet, address = sock.recvfrom(65535)
+                response = build_response(packet, values_by_port[port])
+                sock.sendto(response, address)
+                print(f"Answered SNMP request on {HOST}:{port} from {address[0]}:{address[1]}")
     except KeyboardInterrupt:
-        print("\nSNMP agent stopped")
+        print("\nSNMP agents stopped")
+    finally:
+        for sock in sockets:
+            sock.close()
 
 
-def load_values():
+def load_values(offset):
     values = {}
     for line in SNMPREC.read_text().splitlines():
         if not line.strip():
             continue
         oid, value_type, value = line.split("|", 2)
+        if value.isdigit():
+            value = str(int(value) + offset)
         values[oid] = (int(value_type), value)
     return values
 

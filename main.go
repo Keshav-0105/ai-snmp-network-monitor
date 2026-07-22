@@ -12,7 +12,7 @@ import (
 func main() {
 	snmp := &gosnmp.GoSNMP{
 		Target:        "127.0.0.1",
-		Port:          1161,
+		Port:          2161,
 		Version:       gosnmp.Version3,
 		SecurityModel: gosnmp.UserSecurityModel,
 		MsgFlags:      gosnmp.NoAuthNoPriv,
