@@ -29,7 +29,7 @@ def main():
 
     failed = 0
     failed += check("main.go exists", check_main_go_exists)
-    failed += check("collector uses 127.0.0.1:1161 public SNMP v2c", check_snmp_settings)
+    failed += check("collector uses 127.0.0.1:1161 SNMP v3", check_snmp_settings)
     failed += check("collector polls all required OIDs", check_collector_oids)
     failed += check("collector polls every 60 seconds", check_poll_interval)
     failed += check("data/public.snmprec exists and has valid rows", check_snmprec_rows)
@@ -69,10 +69,12 @@ def check_main_go_exists():
 def check_snmp_settings():
     source = MAIN_GO.read_text()
     must_have = [
-        'Target:    "127.0.0.1"',
-        "Port:      1161",
-        'Community: "public"',
-        "gosnmp.Version2c",
+        'Target:        "127.0.0.1"',
+        "Port:          1161",
+        "gosnmp.Version3",
+        "gosnmp.UserSecurityModel",
+        "gosnmp.NoAuthNoPriv",
+        'UserName: "snmpuser"',
     ]
     for text in must_have:
         if text not in source:

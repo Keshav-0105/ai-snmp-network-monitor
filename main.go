@@ -11,12 +11,16 @@ import (
 
 func main() {
 	snmp := &gosnmp.GoSNMP{
-		Target:    "127.0.0.1",
-		Port:      1161,
-		Community: "public",
-		Version:   gosnmp.Version2c,
-		Timeout:   time.Duration(2) * time.Second,
-		Retries:   3,
+		Target:        "127.0.0.1",
+		Port:          1161,
+		Version:       gosnmp.Version3,
+		SecurityModel: gosnmp.UserSecurityModel,
+		MsgFlags:      gosnmp.NoAuthNoPriv,
+		SecurityParameters: &gosnmp.UsmSecurityParameters{
+			UserName: "snmpuser",
+		},
+		Timeout: time.Duration(2) * time.Second,
+		Retries: 3,
 	}
 
 	err := snmp.Connect()
