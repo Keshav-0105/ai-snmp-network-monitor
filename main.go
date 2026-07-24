@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"time"
@@ -10,6 +9,15 @@ import (
 )
 
 func main() {
+	readingsChan := make(chan Reading)
+
+	go snmpWorker(readingsChan)
+	go dbWorker(readingsChan)
+
+	select {}
+}
+
+func snmpWorker(out chan<- Reading) {
 	snmp := &gosnmp.GoSNMP{
 		Target:    "127.0.0.1",
 		Port:      1161,
@@ -25,12 +33,6 @@ func main() {
 	}
 	defer snmp.Conn.Close()
 
-	db, err := openDatabase()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
 	oids := []string{
 		"1.3.6.1.2.1.25.3.3.1.2.1",
 		"1.3.6.1.2.1.25.2.3.1.6.1",
@@ -39,15 +41,6 @@ func main() {
 		"1.3.6.1.2.1.2.2.1.20.1",
 	}
 
-	readingsChan := make(chan Reading)
-
-	go snmpWorker(snmp, oids, readingsChan)
-	go dbWorker(db, readingsChan)
-
-	select {}
-}
-
-func snmpWorker(snmp *gosnmp.GoSNMP, oids []string, out chan<- Reading) {
 	reading, err := polldevice(snmp, oids)
 	if err == nil {
 		out <- reading
@@ -64,7 +57,13 @@ func snmpWorker(snmp *gosnmp.GoSNMP, oids []string, out chan<- Reading) {
 	}
 }
 
-func dbWorker(db *sql.DB, in <-chan Reading) {
+func dbWorker(in <-chan Reading) {
+	db, err := openDatabase()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
 	for reading := range in {
 		err := saveReading(db, reading)
 		if err != nil {
@@ -96,17 +95,14 @@ func polldevice(snmp *gosnmp.GoSNMP, oids []string) (Reading, error) {
 			value := gosnmp.ToBigInt(variable.Value).Int64()
 			reading.MemoryUsed = int(value)
 		}
-
 		if variable.Name == ".1.3.6.1.2.1.25.2.3.1.5.1" {
 			value := gosnmp.ToBigInt(variable.Value).Int64()
 			reading.MemoryTotal = int(value)
 		}
-
 		if variable.Name == ".1.3.6.1.2.1.2.2.1.14.1" {
 			value := gosnmp.ToBigInt(variable.Value).Int64()
 			reading.InterfaceInErrors = int(value)
 		}
-
 		if variable.Name == ".1.3.6.1.2.1.2.2.1.20.1" {
 			value := gosnmp.ToBigInt(variable.Value).Int64()
 			reading.InterfaceOutErrors = int(value)

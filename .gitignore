@@ -2,3 +2,4 @@ network_monitor.db
 network_monitor_db
 ai-snmp-network-monitor
 *.db
+ml/*.pkl
