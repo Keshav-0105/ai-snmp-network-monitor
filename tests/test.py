@@ -11,7 +11,8 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MAIN_GO = PROJECT_ROOT / "main.go"
 SNMPREC = PROJECT_ROOT / "data" / "public.snmprec"
-TMP_ROOT = Path("/tmp/ai-snmp-network-monitor-go")
+TMP_ROOT = PROJECT_ROOT
+EXPECTED_PORTS = list(range(2161, 2191))
 
 EXPECTED_OIDS = {
     "CPU load": "1.3.6.1.2.1.25.3.3.1.2.1",
@@ -29,7 +30,8 @@ def main():
 
     failed = 0
     failed += check("main.go exists", check_main_go_exists)
-    failed += check("collector uses 127.0.0.1:1161 public SNMP v2c", check_snmp_settings)
+    failed += check("collector uses 127.0.0.1 SNMP v3 on 30 ports", check_snmp_settings)
+    failed += check("start scripts exist and are executable", check_start_scripts)
     failed += check("collector polls all required OIDs", check_collector_oids)
     failed += check("collector polls every 60 seconds", check_poll_interval)
     failed += check("data/public.snmprec exists and has valid rows", check_snmprec_rows)
@@ -45,8 +47,8 @@ def main():
     print("Result: PASSED")
     print()
     print("Next steps:")
-    print("1. Terminal 1: python3 tests/start_agent.py")
-    print("2. Terminal 2: go run .")
+    print("1. Terminal 1: ./start_tester.sh")
+    print("2. Terminal 2: ./start_main.sh")
 
 
 def check(label, function):
@@ -69,14 +71,27 @@ def check_main_go_exists():
 def check_snmp_settings():
     source = MAIN_GO.read_text()
     must_have = [
-        'Target:    "127.0.0.1"',
-        "Port:      1161",
-        'Community: "public"',
-        "gosnmp.Version2c",
+        'newSNMPClient("127.0.0.1", port)',
+        "gosnmp.Version3",
+        "gosnmp.UserSecurityModel",
+        "gosnmp.NoAuthNoPriv",
+        'UserName: "snmpuser"',
     ]
     for text in must_have:
         if text not in source:
             raise AssertionError(f"missing {text}")
+    for port in EXPECTED_PORTS:
+        if str(port) not in source:
+            raise AssertionError(f"missing SNMP port {port}")
+
+
+def check_start_scripts():
+    for script_name in ("start_main.sh", "start_tester.sh"):
+        script = PROJECT_ROOT / script_name
+        if not script.exists():
+            raise AssertionError(f"{script_name} was not found")
+        if not os.access(script, os.X_OK):
+            raise AssertionError(f"{script_name} is not executable")
 
 
 def check_collector_oids():
@@ -133,11 +148,9 @@ def check_ml_demo():
 def check_go_compile():
     env = os.environ.copy()
     env["GO111MODULE"] = "on"
-    env["GOCACHE"] = str(TMP_ROOT / "build-cache")
-    env["GOMODCACHE"] = str(TMP_ROOT / "mod-cache")
-    env["GOTMPDIR"] = str(TMP_ROOT / "tmp")
-    env["GOPATH"] = str(TMP_ROOT / "path")
-    for name in ("GOCACHE", "GOMODCACHE", "GOTMPDIR", "GOPATH"):
+    env["GOCACHE"] = str(TMP_ROOT / ".go-build-cache")
+    env["GOTMPDIR"] = str(TMP_ROOT / ".go-tmp")
+    for name in ("GOCACHE", "GOTMPDIR"):
         Path(env[name]).mkdir(parents=True, exist_ok=True)
 
     result = subprocess.run(

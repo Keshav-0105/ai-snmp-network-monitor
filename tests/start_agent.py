@@ -8,44 +8,67 @@ Keep this terminal open, then run your Go app in another terminal.
 """
 
 from pathlib import Path
+import select
 import socket
 
 
 HOST = "127.0.0.1"
-PORT = 1161
-COMMUNITY = b"public"
+PORTS = [
+    2161, 2162, 2163, 2164, 2165, 2166, 2167, 2168, 2169, 2170,
+    2171, 2172, 2173, 2174, 2175, 2176, 2177, 2178, 2179, 2180,
+    2181, 2182, 2183, 2184, 2185, 2186, 2187, 2188, 2189, 2190,
+]
+USERNAME = b"snmpuser"
+ENGINE_ID = b"local-snmp-agent"
+ENGINE_BOOTS = 1
+ENGINE_TIME = 1
+USM_UNKNOWN_ENGINE_IDS = "1.3.6.1.6.3.15.1.1.4.0"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SNMPREC = PROJECT_ROOT / "data" / "public.snmprec"
 
 
 def main():
-    values = load_values()
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind((HOST, PORT))
+    values_by_port = {port: load_values(index) for index, port in enumerate(PORTS)}
+    sockets = {}
+    for port in PORTS:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind((HOST, port))
+        sockets[sock] = port
 
-    print("SNMP agent started")
-    print(f"Address: {HOST}:{PORT}")
+    print("SNMP agents started")
+    print(f"Address: {HOST}")
+    print("Ports:")
+    for port in PORTS:
+        print(f"  {port}")
     print(f"Data file: {SNMPREC}")
     print("Now open another terminal and run:")
-    print("  go run .")
-    print("Press Ctrl+C here to stop the SNMP agent.")
+    print("  ./start_main.sh")
+    print("Press Ctrl+C here to stop the SNMP agents.")
 
     try:
         while True:
-            packet, address = sock.recvfrom(65535)
-            response = build_response(packet, values)
-            sock.sendto(response, address)
-            print(f"Answered SNMP request from {address[0]}:{address[1]}")
+            ready, _, _ = select.select(list(sockets), [], [])
+            for sock in ready:
+                port = sockets[sock]
+                packet, address = sock.recvfrom(65535)
+                response = build_response(packet, values_by_port[port])
+                sock.sendto(response, address)
+                print(f"Answered SNMP request on {HOST}:{port} from {address[0]}:{address[1]}")
     except KeyboardInterrupt:
-        print("\nSNMP agent stopped")
+        print("\nSNMP agents stopped")
+    finally:
+        for sock in sockets:
+            sock.close()
 
 
-def load_values():
+def load_values(offset):
     values = {}
     for line in SNMPREC.read_text().splitlines():
         if not line.strip():
             continue
         oid, value_type, value = line.split("|", 2)
+        if value.isdigit():
+            value = str(int(value) + offset)
         values[oid] = (int(value_type), value)
     return values
 
@@ -53,35 +76,113 @@ def load_values():
 def build_response(packet, values):
     message, _ = read_tlv(packet, 0)
     version, offset = read_tlv(message.value, 0)
-    community, offset = read_tlv(message.value, offset)
-    request, _ = read_tlv(message.value, offset)
+    header, offset = read_tlv(message.value, offset)
+    security_parameters, offset = read_tlv(message.value, offset)
+    scoped_pdu, _ = read_tlv(message.value, offset)
 
-    if int_from_bytes(version.value) != 1:
-        raise ValueError("Only SNMP v2c is supported")
-    if community.value != COMMUNITY:
-        raise ValueError("Community must be public")
+    if int_from_bytes(version.value) != 3:
+        raise ValueError("Only SNMP v3 is supported")
 
-    request_id, pdu_offset = read_tlv(request.value, 0)
-    _, pdu_offset = read_tlv(request.value, pdu_offset)
-    _, pdu_offset = read_tlv(request.value, pdu_offset)
-    varbind_list, _ = read_tlv(request.value, pdu_offset)
+    msg_id, header_offset = read_tlv(header.value, 0)
+    msg_max_size, header_offset = read_tlv(header.value, header_offset)
+    _, header_offset = read_tlv(header.value, header_offset)
+    _, _ = read_tlv(header.value, header_offset)
+
+    security = parse_security_parameters(security_parameters.value)
+    context_engine_id, scoped_offset = read_tlv(scoped_pdu.value, 0)
+    context_name, scoped_offset = read_tlv(scoped_pdu.value, scoped_offset)
+    request, _ = read_tlv(scoped_pdu.value, scoped_offset)
+
+    if security["engine_id"] == b"":
+        return build_v3_message(
+            int_from_bytes(msg_id.value),
+            int_from_bytes(msg_max_size.value),
+            context_name.value,
+            request,
+            0xA8,
+            [encode_varbind(USM_UNKNOWN_ENGINE_IDS, (2, "1"))],
+        )
+    if security["username"] != USERNAME:
+        raise ValueError("SNMP v3 username must be snmpuser")
+    if context_engine_id.value != ENGINE_ID:
+        raise ValueError("SNMP v3 context engine ID does not match")
 
     response_varbinds = []
     offset = 0
+    varbind_list = get_varbind_list(request)
     while offset < len(varbind_list.value):
         varbind, offset = read_tlv(varbind_list.value, offset)
         oid_tlv, _ = read_tlv(varbind.value, 0)
         oid = decode_oid(oid_tlv.value)
         response_varbinds.append(encode_varbind(oid, values.get(oid)))
 
-    pdu = tlv(
+    return build_v3_message(
+        int_from_bytes(msg_id.value),
+        int_from_bytes(msg_max_size.value),
+        context_name.value,
+        request,
         0xA2,
+        response_varbinds,
+    )
+
+
+def parse_security_parameters(data):
+    sequence, _ = read_tlv(data, 0)
+    engine_id, offset = read_tlv(sequence.value, 0)
+    engine_boots, offset = read_tlv(sequence.value, offset)
+    engine_time, offset = read_tlv(sequence.value, offset)
+    username, offset = read_tlv(sequence.value, offset)
+    _, offset = read_tlv(sequence.value, offset)
+    _, _ = read_tlv(sequence.value, offset)
+    return {
+        "engine_id": engine_id.value,
+        "engine_boots": int_from_bytes(engine_boots.value),
+        "engine_time": int_from_bytes(engine_time.value),
+        "username": username.value,
+    }
+
+
+def get_varbind_list(request):
+    request_id, pdu_offset = read_tlv(request.value, 0)
+    _, pdu_offset = read_tlv(request.value, pdu_offset)
+    _, pdu_offset = read_tlv(request.value, pdu_offset)
+    varbind_list, _ = read_tlv(request.value, pdu_offset)
+    return varbind_list
+
+
+def build_v3_message(msg_id, msg_max_size, context_name, request, pdu_type, response_varbinds):
+    request_id, _ = read_tlv(request.value, 0)
+    pdu = tlv(
+        pdu_type,
         encode_integer(int_from_bytes(request_id.value))
         + encode_integer(0)
         + encode_integer(0)
         + tlv(0x30, b"".join(response_varbinds)),
     )
-    return tlv(0x30, encode_integer(1) + tlv(0x04, COMMUNITY) + pdu)
+    scoped_pdu = tlv(0x30, tlv(0x04, ENGINE_ID) + tlv(0x04, context_name) + pdu)
+    header = tlv(
+        0x30,
+        encode_integer(msg_id)
+        + encode_integer(msg_max_size)
+        + tlv(0x04, b"\x00")
+        + encode_integer(3),
+    )
+    security_parameters = tlv(
+        0x30,
+        tlv(0x04, ENGINE_ID)
+        + encode_integer(ENGINE_BOOTS)
+        + encode_integer(ENGINE_TIME)
+        + tlv(0x04, USERNAME)
+        + tlv(0x04, b"")
+        + tlv(0x04, b""),
+    )
+    return tlv(
+        0x30,
+        encode_integer(3)
+        + header
+        + tlv(0x04, security_parameters)
+        + scoped_pdu,
+    )
 
 
 def encode_varbind(oid, typed_value):
