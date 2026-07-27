@@ -11,29 +11,36 @@ import (
 func main() {
 	readingsChan := make(chan Reading)
 
-	go snmpWorker(readingsChan)
+	startPort := 2161
+	endPort := 2200
+
+	for port := startPort; port <= endPort; port++ {
+		go snmpWorker(port, readingsChan)
+	}
+
 	go dbWorker(readingsChan)
 
 	select {}
 }
 
-func snmpWorker(out chan<- Reading) {
+func snmpWorker(port int, out chan<- Reading) {
 	snmp := &gosnmp.GoSNMP{
 		Target:        "127.0.0.1",
-		Port:          2161,
+		Port:          uint16(port),
 		Version:       gosnmp.Version3,
 		SecurityModel: gosnmp.UserSecurityModel,
 		MsgFlags:      gosnmp.NoAuthNoPriv,
 		SecurityParameters: &gosnmp.UsmSecurityParameters{
 			UserName: "snmpuser",
 		},
-		Timeout: time.Duration(2) * time.Second,
-		Retries: 3,
+		ContextName: "public",
+		Timeout:     time.Duration(2) * time.Second,
+		Retries:     1,
 	}
 
 	err := snmp.Connect()
 	if err != nil {
-		log.Fatalf("Connect error: %v", err)
+		return
 	}
 	defer snmp.Conn.Close()
 
@@ -47,7 +54,10 @@ func snmpWorker(out chan<- Reading) {
 
 	reading, err := polldevice(snmp, oids)
 	if err == nil {
+		log.Printf("Device found and polled on port %d", port)
 		out <- reading
+	} else {
+		return
 	}
 
 	ticker := time.NewTicker(60 * time.Second)
@@ -79,7 +89,6 @@ func dbWorker(in <-chan Reading) {
 }
 
 func polldevice(snmp *gosnmp.GoSNMP, oids []string) (Reading, error) {
-	fmt.Println("polldevice function started")
 	result, err := snmp.Get(oids)
 	if err != nil {
 		return Reading{}, err
@@ -112,7 +121,6 @@ func polldevice(snmp *gosnmp.GoSNMP, oids []string) (Reading, error) {
 			reading.InterfaceOutErrors = int(value)
 		}
 	}
-	fmt.Println("reading captured:", reading)
 
 	return reading, nil
 }
