@@ -21,8 +21,13 @@ type Reading struct {
 func openDatabase() (*sql.DB, error) {
 	db, err := sql.Open("sqlite", "network_monitor.db")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open database file: %w", err)
 	}
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("database opened but not reachable: %w", err)
+	}
+
 	fmt.Println("Database opened successfully")
 
 	createTableSQL := `
@@ -37,9 +42,8 @@ func openDatabase() (*sql.DB, error) {
 		interface_out_errors INTEGER NOT NULL
 	);`
 
-	_, err = db.Exec(createTableSQL)
-	if err != nil {
-		return nil, err
+	if _, err := db.Exec(createTableSQL); err != nil {
+		return nil, fmt.Errorf("failed to create readings table: %w", err)
 	}
 	fmt.Println("Table ready")
 
@@ -47,6 +51,14 @@ func openDatabase() (*sql.DB, error) {
 }
 
 func saveReading(db *sql.DB, r Reading) error {
+	if db == nil {
+		return fmt.Errorf("saveReading called with nil database connection")
+	}
+
+	if r.Device == "" {
+		return fmt.Errorf("saveReading called with empty device field")
+	}
+
 	insertSQL := `
 	INSERT INTO readings (device, collected_at, cpu, memory_used, memory_total, interface_in_errors, interface_out_errors)
 	VALUES (?, ?, ?, ?, ?, ?, ?);`
@@ -60,6 +72,9 @@ func saveReading(db *sql.DB, r Reading) error {
 		r.InterfaceInErrors,
 		r.InterfaceOutErrors,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to insert reading for device %s: %w", r.Device, err)
+	}
 
+	return nil
 }
