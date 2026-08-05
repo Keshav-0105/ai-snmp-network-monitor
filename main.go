@@ -1,8 +1,10 @@
 package main
 
 import (
+
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/gosnmp/gosnmp"
@@ -24,12 +26,14 @@ func main() {
 }
 
 func snmpWorker(port int, out chan<- Reading) {
-	ticker := time.NewTicker(60 * time.Second)
-	defer ticker.Stop()
+	target := os.Getenv("SNMP_TARGET")
+	if target == "" {
+		target = "127.0.0.1"
+	}
 
 	attemptConnection := func() {
 		snmp := &gosnmp.GoSNMP{
-			Target:        "127.0.0.1",
+			Target:        target,
 			Port:          uint16(port),
 			Version:       gosnmp.Version3,
 			SecurityModel: gosnmp.UserSecurityModel,
@@ -45,7 +49,11 @@ func snmpWorker(port int, out chan<- Reading) {
 		if err := snmp.Connect(); err != nil {
 			return
 		}
-		defer snmp.Conn.Close()
+		defer func() {
+			if err := snmp.Conn.Close(); err != nil {
+				log.Printf("Warning: failed to close SNMP connection on port %d: %v", port, err)
+			}
+		}()
 
 		oids := []string{
 			"1.3.6.1.2.1.25.3.3.1.2.1",
@@ -66,6 +74,9 @@ func snmpWorker(port int, out chan<- Reading) {
 	}
 
 	attemptConnection()
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
 
 	for range ticker.C {
 		attemptConnection()
@@ -127,3 +138,4 @@ func polldevice(snmp *gosnmp.GoSNMP, oids []string) (Reading, error) {
 
 	return reading, nil
 }
+
