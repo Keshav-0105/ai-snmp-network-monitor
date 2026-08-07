@@ -1,14 +1,9 @@
-FROM golang:1.26-alpine
-
+FROM alpine:latest
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . .
-
-RUN go build -o snmp-monitor .
+COPY snmp-monitor .
+COPY data ./data
 
 CMD ["./snmp-monitor"]
 
