@@ -1,8 +1,9 @@
 import sqlite3
 import pandas as pd
+import numpy as np
 from sklearn.ensemble import IsolationForest
 from sklearn.model_selection import train_test_split
-import numpy as np
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 
 conn = sqlite3.connect("../network_monitor.db")
 df = pd.read_sql_query("SELECT * FROM readings", conn)
@@ -15,14 +16,12 @@ df["memory_percent"] = (df["memory_used"] / df["memory_total"]) * 100
 features = df[["hour", "cpu", "memory_percent", "interface_in_errors", "interface_out_errors"]]
 
 train_data, test_data = train_test_split(features, test_size=0.2, random_state=42)
-
 print(f"Total rows: {len(features)}")
 print(f"Training rows: {len(train_data)}")
 print(f"Testing rows: {len(test_data)}")
 
 model = IsolationForest(contamination=0.05, random_state=42)
 model.fit(train_data)
-
 print("Model trained successfully on training set only")
 
 train_predictions = model.predict(train_data)
@@ -39,7 +38,6 @@ print(f"Training anomaly rate: {anomaly_rate_train:.1f}%")
 print(f"Testing anomaly rate: {anomaly_rate_test:.1f}%")
 
 print("\n--- Testing with new samples ---")
-
 normal_sample = pd.DataFrame([{
     "hour": 13,
     "cpu": 45,
@@ -47,7 +45,6 @@ normal_sample = pd.DataFrame([{
     "interface_in_errors": 1250,
     "interface_out_errors": 320
 }])
-
 night_normal_sample = pd.DataFrame([{
     "hour": 3,
     "cpu": 18,
@@ -55,7 +52,6 @@ night_normal_sample = pd.DataFrame([{
     "interface_in_errors": 1150,
     "interface_out_errors": 280
 }])
-
 anomaly_sample = pd.DataFrame([{
     "hour": 3,
     "cpu": 95,
@@ -63,7 +59,6 @@ anomaly_sample = pd.DataFrame([{
     "interface_in_errors": 5000,
     "interface_out_errors": 4000
 }])
-
 print("Daytime normal sample:", model.predict(normal_sample))
 print("Nighttime normal sample:", model.predict(night_normal_sample))
 print("Anomaly sample:", model.predict(anomaly_sample))
@@ -71,12 +66,42 @@ print("Anomaly sample:", model.predict(anomaly_sample))
 import joblib
 joblib.dump(model, "isolation_forest_model.pkl")
 print("\nModel saved to isolation_forest_model.pkl")
+
+n_normal_eval = min(50, len(test_data))
+normal_eval = test_data.sample(n=n_normal_eval, random_state=42).copy()
+normal_eval_labels = np.ones(len(normal_eval))
+
+feature_cols = ["hour", "cpu", "memory_percent", "interface_in_errors", "interface_out_errors"]
+means = features[feature_cols].mean()
+stds = features[feature_cols].std()
+
+n_anomaly_eval = max(10, int(n_normal_eval * 0.2))
+rng = np.random.default_rng(42)
+synthetic_anomalies = pd.DataFrame({
+    "hour": rng.integers(0, 24, n_anomaly_eval),
+    "cpu": np.clip(means["cpu"] + rng.uniform(4, 6, n_anomaly_eval) * stds["cpu"], 90, 100),
+    "memory_percent": np.clip(means["memory_percent"] + rng.uniform(4, 6, n_anomaly_eval) * stds["memory_percent"], 85, 100),
+    "interface_in_errors": means["interface_in_errors"] + rng.uniform(4, 8, n_anomaly_eval) * stds["interface_in_errors"],
+    "interface_out_errors": means["interface_out_errors"] + rng.uniform(4, 8, n_anomaly_eval) * stds["interface_out_errors"],
+})
+synthetic_anomaly_labels = -np.ones(len(synthetic_anomalies))
+
+eval_data = pd.concat([normal_eval, synthetic_anomalies], ignore_index=True)
+eval_true_labels = np.concatenate([normal_eval_labels, synthetic_anomaly_labels])
+eval_predictions = model.predict(eval_data)
+
+accuracy = accuracy_score(eval_true_labels, eval_predictions)
+precision = precision_score(eval_true_labels, eval_predictions, pos_label=-1, zero_division=0)
+recall = recall_score(eval_true_labels, eval_predictions, pos_label=-1, zero_division=0)
+f1 = f1_score(eval_true_labels, eval_predictions, pos_label=-1, zero_division=0)
+
+print(f"\nAccuracy:  {accuracy:.3f}")
+
+
 from explain_anomaly import explain_anomaly
 
 anomaly_rows = test_data[test_predictions == -1]
-
 print(f"\nGenerating explanations for {len(anomaly_rows)} anomalies found in TEST data...\n")
-
 for idx, row in anomaly_rows.iterrows():
     explanation = explain_anomaly(
         hour=row["hour"],
@@ -88,4 +113,3 @@ for idx, row in anomaly_rows.iterrows():
     print(f"--- Anomaly at row {idx} ---")
     print(f"Values: hour={row['hour']}, cpu={row['cpu']}, mem%={row['memory_percent']:.1f}")
     print(f"Explanation: {explanation}\n")
-
