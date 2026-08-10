@@ -1,3 +1,6 @@
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import sqlite3
 import pandas as pd
 import numpy as np
@@ -113,3 +116,70 @@ for idx, row in anomaly_rows.iterrows():
     print(f"--- Anomaly at row {idx} ---")
     print(f"Values: hour={row['hour']}, cpu={row['cpu']}, mem%={row['memory_percent']:.1f}")
     print(f"Explanation: {explanation}\n")
+    # ---------- CHART 1: Train/Test split ----------
+plt.figure(figsize=(6, 4))
+plt.bar(["Training", "Testing"], [len(train_data), len(test_data)], color=["#1B3A5C", "#2E7D8C"])
+plt.title("Train / Test Split")
+plt.ylabel("Number of Readings")
+for i, v in enumerate([len(train_data), len(test_data)]):
+    plt.text(i, v + 2, str(v), ha="center", fontweight="bold")
+plt.tight_layout()
+plt.savefig("chart_split.png")
+plt.close()
+
+# ---------- CHART 2: Anomaly rate comparison ----------
+plt.figure(figsize=(6, 4))
+plt.bar(["Training", "Testing"], [anomaly_rate_train, anomaly_rate_test], color=["#1B3A5C", "#2E7D8C"])
+plt.title("Anomaly Rate: Training vs Testing")
+plt.ylabel("Anomaly Rate (%)")
+for i, v in enumerate([anomaly_rate_train, anomaly_rate_test]):
+    plt.text(i, v + 0.1, f"{v:.1f}%", ha="center", fontweight="bold")
+plt.tight_layout()
+plt.savefig("chart_anomaly_rate.png")
+plt.close()
+
+# ---------- CHART 3: Accuracy on known test cases ----------
+known_anomalies = pd.DataFrame([
+    {"hour": 3, "cpu": 98, "memory_percent": 95, "interface_in_errors": 6000, "interface_out_errors": 5000},
+    {"hour": 14, "cpu": 100, "memory_percent": 99, "interface_in_errors": 8000, "interface_out_errors": 7000},
+    {"hour": 2, "cpu": 90, "memory_percent": 85, "interface_in_errors": 5500, "interface_out_errors": 4500},
+])
+known_normals = pd.DataFrame([
+    {"hour": 13, "cpu": 42, "memory_percent": 39, "interface_in_errors": 1200, "interface_out_errors": 300},
+    {"hour": 9, "cpu": 40, "memory_percent": 38, "interface_in_errors": 1180, "interface_out_errors": 290},
+    {"hour": 3, "cpu": 15, "memory_percent": 28, "interface_in_errors": 1100, "interface_out_errors": 260},
+])
+
+correct_anomalies = (model.predict(known_anomalies) == -1).sum()
+correct_normals = (model.predict(known_normals) == 1).sum()
+
+plt.figure(figsize=(6, 4))
+plt.bar(["Known Anomalies\nCorrectly Flagged", "Known Normal Cases\nCorrectly Passed"],
+        [correct_anomalies, correct_normals], color=["#2E7D8C", "#1B3A5C"])
+plt.ylim(0, 3.5)
+plt.title(f"Validation Accuracy: {correct_anomalies + correct_normals}/6 = {((correct_anomalies+correct_normals)/6)*100:.0f}%")
+plt.ylabel("Correctly Classified")
+for i, v in enumerate([correct_anomalies, correct_normals]):
+    plt.text(i, v + 0.1, f"{v}/3", ha="center", fontweight="bold")
+plt.tight_layout()
+plt.savefig("chart_accuracy.png")
+plt.close()
+
+# ---------- CHART 4: CPU vs Hour scatter, normal vs anomaly ----------
+plt.figure(figsize=(7, 4.5))
+normal_points = features[train_predictions == 1] if len(train_predictions) == len(features) else features.loc[train_data.index[train_predictions == 1]]
+plt.scatter(train_data.loc[train_predictions == 1, "hour"],
+            train_data.loc[train_predictions == 1, "cpu"],
+            s=15, color="#1B3A5C", alpha=0.5, label="Normal")
+plt.scatter(train_data.loc[train_predictions == -1, "hour"],
+            train_data.loc[train_predictions == -1, "cpu"],
+            s=45, color="#C0392B", marker="x", linewidths=2, label="Anomaly")
+plt.xlabel("Hour of Day")
+plt.ylabel("CPU (%)")
+plt.title("CPU vs Hour — Normal vs Flagged Anomalies (Training Data)")
+plt.legend()
+plt.tight_layout()
+plt.savefig("chart_scatter.png")
+plt.close()
+
+print("\nCharts saved: chart_split.png, chart_anomaly_rate.png, chart_accuracy.png, chart_scatter.png")
