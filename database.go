@@ -73,7 +73,8 @@ func saveReading(db *sql.DB, r Reading) error {
 		r.InterfaceOutErrors,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to insert reading for device %s: %w", r.Device, err)
+		return fmt.Errorf("failed to insert reading for device %s: %w
+		", r.Device, err)
 	}
 
 	return nil
