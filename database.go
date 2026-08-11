@@ -8,6 +8,9 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// Reading represents a single SNMP poll result for one device at one point
+// in time. This is the shared data shape passed from the Go collector into
+// the database, and it mirrors the columns of the readings table below.
 type Reading struct {
 	Device             string
 	CollectedAt        time.Time
@@ -18,18 +21,24 @@ type Reading struct {
 	InterfaceOutErrors int
 }
 
+// openDatabase opens (or creates) network_monitor.db, verifies the
+// connection actually works, and ensures the readings table exists.
+// Called once at startup by dbWorker in main.go.
 func openDatabase() (*sql.DB, error) {
 	db, err := sql.Open("sqlite", "network_monitor.db")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database file: %w", err)
 	}
 
+	// sql.Open doesn't actually connect — Ping forces a real connection
+	// attempt so we fail fast here instead of on the first query later.
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("database opened but not reachable: %w", err)
 	}
-
 	fmt.Println("Database opened successfully")
 
+	// Create the table on first run; IF NOT EXISTS makes this safe to call
+	// every time the program starts without wiping existing data.
 	createTableSQL := `
 	CREATE TABLE IF NOT EXISTS readings (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,7 +50,6 @@ func openDatabase() (*sql.DB, error) {
 		interface_in_errors INTEGER NOT NULL,
 		interface_out_errors INTEGER NOT NULL
 	);`
-
 	if _, err := db.Exec(createTableSQL); err != nil {
 		return nil, fmt.Errorf("failed to create readings table: %w", err)
 	}
@@ -50,11 +58,14 @@ func openDatabase() (*sql.DB, error) {
 	return db, nil
 }
 
+// saveReading inserts a single Reading into the readings table.
+// CollectedAt is stored as an RFC3339 string so it stays sortable and
+// portable, and is easily parsed back into a datetime by pandas later
+// in model_train.py.
 func saveReading(db *sql.DB, r Reading) error {
 	if db == nil {
 		return fmt.Errorf("saveReading called with nil database connection")
 	}
-
 	if r.Device == "" {
 		return fmt.Errorf("saveReading called with empty device field")
 	}
@@ -73,8 +84,7 @@ func saveReading(db *sql.DB, r Reading) error {
 		r.InterfaceOutErrors,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to insert reading for device %s: %w
-		", r.Device, err)
+		return fmt.Errorf("failed to insert reading for device %s: %w", r.Device, err)
 	}
 
 	return nil
