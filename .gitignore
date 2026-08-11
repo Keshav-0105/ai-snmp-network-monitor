@@ -14,3 +14,5 @@ tests/__pycache__/
 ml/__pycache__/
 .DS_Store
 >>>>>>> 819840d (Add detailed comments throughout code, clean up gitignore)
+ai-snmp-network-monitor
+network_monitor_db
