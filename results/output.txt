@@ -1,11 +1,11 @@
-Total rows: 617
-Training rows: 493
-Testing rows: 124
+Total rows: 2647
+Training rows: 2117
+Testing rows: 530
 Model trained successfully on training set only
-Anomalies in TRAINING data: 25 out of 493
-Anomalies in TESTING data (never seen during training): 10 out of 124
-Training anomaly rate: 5.1%
-Testing anomaly rate: 8.1%
+Anomalies in TRAINING data: 106 out of 2117
+Anomalies in TESTING data (never seen during training): 24 out of 530
+Training anomaly rate: 5.0%
+Testing anomaly rate: 4.5%
 
 --- Testing with new samples ---
 Daytime normal sample: [1]
@@ -16,47 +16,103 @@ Model saved to isolation_forest_model.pkl
 
 Accuracy:  0.967
 
-Generating explanations for 10 anomalies found in TEST data...
+Generating explanations for 24 anomalies found in TEST data...
 
---- Anomaly at row 82 ---
-Values: hour=0.0, cpu=25.0, mem%=27.4
-Explanation: High network error rates may indicate a connectivity or configuration issue with the system's network interface.
+--- Anomaly at row 2548 ---
+Values: hour=17.0, cpu=31.0, mem%=27.3
+Explanation: High network error rates are indicative of a potential problem with the interface or its configuration.
 
---- Anomaly at row 2 ---
-Values: hour=8.0, cpu=99.0, mem%=50.0
-Explanation: The high CPU usage is likely causing the anomaly.
+--- Anomaly at row 2581 ---
+Values: hour=0.0, cpu=79.0, mem%=45.5
+Explanation: High network error rates may indicate a problem with the system's connection to the network.
 
---- Anomaly at row 184 ---
-Values: hour=17.0, cpu=51.0, mem%=39.2
-Explanation: High CPU usage due to an application or process consuming excessive system resources is likely causing the anomaly.
+--- Anomaly at row 2562 ---
+Values: hour=8.0, cpu=97.0, mem%=97.1
+Explanation: High network error rates are indicative of a potential hardware or software issue with the interface.
 
---- Anomaly at row 78 ---
-Values: hour=23.0, cpu=20.0, mem%=25.1
-Explanation: A network interface or device failure occurred during late evening/night hours when traffic is typically lower.
+--- Anomaly at row 2636 ---
+Values: hour=23.0, cpu=61.0, mem%=58.8
+Explanation: High network error rates may indicate a malicious or botched script running on the system.
 
---- Anomaly at row 215 ---
-Values: hour=22.0, cpu=14.0, mem%=25.5
-Explanation: Excessive interface errors may indicate a hardware or network issue.
+--- Anomaly at row 2552 ---
+Values: hour=16.0, cpu=90.0, mem%=93.2
+Explanation: The high CPU usage is likely due to a denial-of-service attack or a severe malware infection.
 
---- Anomaly at row 204 ---
-Values: hour=20.0, cpu=12.0, mem%=24.8
-Explanation: The system has experienced a high number of incoming interface errors, indicating potential network issues or misconfiguration.
+--- Anomaly at row 2422 ---
+Values: hour=4.0, cpu=96.0, mem%=45.4
+Explanation: High CPU usage might be causing the system to drop or reject incoming data.
 
---- Anomaly at row 90 ---
-Values: hour=1.0, cpu=25.0, mem%=33.0
-Explanation: The interface is experiencing a high number of incoming errors.
+--- Anomaly at row 2537 ---
+Values: hour=0.0, cpu=30.0, mem%=34.7
+Explanation: A high number of interface outgoing errors suggests a potential network issue or connectivity problem.
 
---- Anomaly at row 212 ---
-Values: hour=22.0, cpu=10.0, mem%=31.2
-Explanation: The most likely cause is a sudden spike in incoming network packets or traffic that triggered the error counter to 1293.0.
+--- Anomaly at row 2549 ---
+Values: hour=10.0, cpu=22.0, mem%=31.0
+Explanation: The high number of interface incoming errors is likely the primary cause of this anomaly.
 
---- Anomaly at row 81 ---
-Values: hour=0.0, cpu=10.0, mem%=34.1
-Explanation: High interface error rates may indicate a network or hardware issue.
+--- Anomaly at row 2561 ---
+Values: hour=13.0, cpu=93.0, mem%=97.1
+Explanation: High network error rates may indicate a problem with the network interface or connectivity.
 
---- Anomaly at row 181 ---
-Values: hour=16.0, cpu=42.0, mem%=44.8
-Explanation: The system is experiencing high CPU usage and memory allocation, possibly due to a resource-intensive application or process running in the background.
+--- Anomaly at row 2560 ---
+Values: hour=19.0, cpu=94.0, mem%=95.0
+Explanation: High network traffic with an unusually high number of incoming errors.
+
+--- Anomaly at row 2567 ---
+Values: hour=3.0, cpu=92.0, mem%=93.2
+Explanation: The anomaly is likely due to a network interface error caused by excessive packet loss or corruption.
+
+--- Anomaly at row 2545 ---
+Values: hour=15.0, cpu=34.0, mem%=32.0
+Explanation: High network error rates may be indicating a congested or failing network connection.
+
+--- Anomaly at row 2632 ---
+Values: hour=22.0, cpu=49.0, mem%=50.7
+Explanation: Excessive interface errors indicate a network connectivity issue.
+
+--- Anomaly at row 2557 ---
+Values: hour=12.0, cpu=93.0, mem%=96.0
+Explanation: Excessive network errors indicating possible misconfiguration or connectivity issues with network interfaces.
+
+--- Anomaly at row 2551 ---
+Values: hour=20.0, cpu=29.0, mem%=31.7
+Explanation: The system is under high network load with a significant increase in outgoing errors indicating potential issues with data transmission.
+
+--- Anomaly at row 2642 ---
+Values: hour=0.0, cpu=76.0, mem%=78.3
+Explanation: High CPU usage is causing a system-wide slowdown due to excessive resource consumption.
+
+--- Anomaly at row 2492 ---
+Values: hour=15.0, cpu=26.0, mem%=33.8
+Explanation: High interface incoming error rates often indicate network issues or security threats.
+
+--- Anomaly at row 2511 ---
+Values: hour=10.0, cpu=35.0, mem%=31.6
+Explanation: High network error rates may indicate a routing or connectivity issue with one of the interfaces.
+
+--- Anomaly at row 2634 ---
+Values: hour=22.0, cpu=62.0, mem%=53.9
+Explanation: The high interface incoming error rate is likely causing the anomaly.
+
+--- Anomaly at row 2542 ---
+Values: hour=12.0, cpu=24.0, mem%=35.0
+Explanation: Excessive network packet loss due to interface issues.
+
+--- Anomaly at row 2531 ---
+Values: hour=19.0, cpu=28.0, mem%=36.0
+Explanation: High network packet error rates (1347 incoming, 4916 outgoing) may be causing the system to become unstable and leading to CPU utilization.
+
+--- Anomaly at row 2518 ---
+Values: hour=4.0, cpu=42.0, mem%=42.8
+Explanation: The network interface is experiencing an unusually high number of incoming errors.
+
+--- Anomaly at row 2485 ---
+Values: hour=20.0, cpu=28.0, mem%=90.1
+Explanation: High CPU usage is causing the system to become overloaded and possibly triggering errors on network interfaces.
+
+--- Anomaly at row 2526 ---
+Values: hour=7.0, cpu=29.0, mem%=32.6
+Explanation: High network error rates are often caused by malware or a malicious program running on the system.
 
 
 Charts saved: chart_split.png, chart_anomaly_rate.png, chart_accuracy.png, chart_scatter.png
